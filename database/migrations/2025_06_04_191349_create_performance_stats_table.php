@@ -13,8 +13,13 @@ return new class extends Migration
     {
         Schema::create('performance_stats', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->date('date');
+            $table->integer('tables_served')->default(0);
+            $table->time('avg_service_time')->nullable();
             $table->timestamps();
         });
+
     }
 
     /**

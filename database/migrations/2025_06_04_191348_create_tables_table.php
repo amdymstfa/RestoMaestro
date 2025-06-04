@@ -13,8 +13,12 @@ return new class extends Migration
     {
         Schema::create('tables', function (Blueprint $table) {
             $table->id();
+            $table->integer('number')->unique();
+            $table->integer('seats');
+            $table->enum('status', ['free', 'occupied', 'reserved'])->default('free');
             $table->timestamps();
         });
+
     }
 
     /**

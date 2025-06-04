@@ -11,10 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('reservations', function (Blueprint $table) {
+       Schema::create('reservations', function (Blueprint $table) {
             $table->id();
+            $table->string('client_name', 100);
+            $table->string('phone', 20)->nullable();
+            $table->dateTime('reservation_time');
+            $table->foreignId('table_id')->nullable()->constrained('tables')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
+
     }
 
     /**

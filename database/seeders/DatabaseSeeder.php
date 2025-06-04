@@ -2,9 +2,18 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+
 use Illuminate\Database\Seeder;
+use Database\Seeders\UsersSeeder;
+use Database\Seeders\TablesSeeder;
+use Database\Seeders\MenusSeeder;
+use Database\Seeders\ReservationsSeeder;
+use Database\Seeders\OrdersSeeder;
+use Database\Seeders\OrderItemsSeeder;
+use Database\Seeders\LogSeeder;
+use Database\Seeders\PerformanceStatsSeeder;
+// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+
 
 class DatabaseSeeder extends Seeder
 {
@@ -14,14 +23,14 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            UserSeeder::class,
-            TableSeeder::class,
-            MenuSeeder::class,
-            ReservationSeeder::class,
-            OrderSeeder::class,
-            OrderItemSeeder::class,
+            UsersSeeder::class,
+            TablesSeeder::class,
+            MenusSeeder::class,
+            ReservationsSeeder::class,
+            OrdersSeeder::class,
+            OrderItemsSeeder::class,
             LogSeeder::class,
-            PerformanceStatSeeder::class,
+            PerformanceStatsSeeder::class,
         ]);
     }
 

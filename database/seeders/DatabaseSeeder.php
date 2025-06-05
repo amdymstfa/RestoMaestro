@@ -2,18 +2,7 @@
 
 namespace Database\Seeders;
 
-
 use Illuminate\Database\Seeder;
-use Database\Seeders\UsersSeeder;
-use Database\Seeders\TablesSeeder;
-use Database\Seeders\MenusSeeder;
-use Database\Seeders\ReservationsSeeder;
-use Database\Seeders\OrdersSeeder;
-use Database\Seeders\OrderItemsSeeder;
-use Database\Seeders\LogSeeder;
-use Database\Seeders\PerformanceStatsSeeder;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-
 
 class DatabaseSeeder extends Seeder
 {
@@ -22,16 +11,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Ordre important : d'abord les données de base, puis les relations
         $this->call([
-            UsersSeeder::class,
+              UsersSeeder::class,
             TablesSeeder::class,
-            MenusSeeder::class,
+            MenuSeeder::class,
+            MenuItemSeeder::class,
             ReservationsSeeder::class,
             OrdersSeeder::class,
-            OrderItemsSeeder::class,
-            LogSeeder::class,
-            PerformanceStatsSeeder::class,
         ]);
     }
-
 }

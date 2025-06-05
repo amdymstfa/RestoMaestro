@@ -59,7 +59,7 @@ class MenuController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'price' => 'required|numeric|min:0',
@@ -70,11 +70,15 @@ class MenuController extends Controller
             'is_special' => 'boolean',
         ]);
 
-        $validated['is_available'] = $request->has('is_available');
-        $validated['is_special'] = $request->has('is_special');
-        $validated['allergens'] = $request->input('allergens', []);
-
-        MenuItem::create($validated);
+        MenuItem::create([
+            'name' => $request->name,
+            'description' => $request->description,
+            'price' => $request->price,
+            'category' => $request->category,
+            'allergens' => $request->input('allergens', []),
+            'is_available' => $request->has('is_available'),
+            'is_special' => $request->has('is_special'),
+        ]);
 
         return redirect()->route('manager.menus.index')
                         ->with('success', 'Plat créé avec succès.');
@@ -97,7 +101,7 @@ class MenuController extends Controller
 
     public function update(Request $request, MenuItem $menu)
     {
-        $validated = $request->validate([
+        $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'price' => 'required|numeric|min:0',
@@ -108,11 +112,15 @@ class MenuController extends Controller
             'is_special' => 'boolean',
         ]);
 
-        $validated['is_available'] = $request->has('is_available');
-        $validated['is_special'] = $request->has('is_special');
-        $validated['allergens'] = $request->input('allergens', []);
-
-        $menu->update($validated);
+        $menu->update([
+            'name' => $request->name,
+            'description' => $request->description,
+            'price' => $request->price,
+            'category' => $request->category,
+            'allergens' => $request->input('allergens', []),
+            'is_available' => $request->has('is_available'),
+            'is_special' => $request->has('is_special'),
+        ]);
 
         return redirect()->route('manager.menus.show', $menu)
                         ->with('success', 'Plat mis à jour avec succès.');

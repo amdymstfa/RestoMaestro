@@ -121,7 +121,7 @@ class ReservationController extends Controller
      */
     public function update(Request $request, Reservation $reservation)
     {
-        $request->validate([
+        $validatedData = $request->validate([
             'client_name' => ['required', 'string', 'max:100'],
             'phone' => ['nullable', 'string', 'max:20'],
             'reservation_time' => ['required', 'date', 'after:now'],
@@ -138,7 +138,7 @@ class ReservationController extends Controller
             return back()->withErrors(['table_id' => 'Cette table est déjà réservée à cette heure.']);
         }
 
-        $reservation->update($request->validated());
+        $reservation->update($validatedData);
 
         return redirect()->route('manager.reservations.show', $reservation)
             ->with('success', 'Réservation mise à jour avec succès.');

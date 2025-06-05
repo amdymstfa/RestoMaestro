@@ -88,12 +88,12 @@ class TableController extends Controller
      */
     public function update(Request $request, Table $table)
     {
-        $request->validate([
+        $validatedData = $request->validate([
             'number' => ['required', 'integer', 'unique:tables,number,' . $table->id],
             'seats' => ['required', 'integer', 'min:1', 'max:20'],
         ]);
 
-        $table->update($request->validated());
+        $table->update($validatedData);
 
         return redirect()->route('manager.tables.show', $table)
             ->with('success', 'Table mise à jour avec succès.');

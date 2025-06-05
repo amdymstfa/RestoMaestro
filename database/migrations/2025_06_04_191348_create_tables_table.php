@@ -15,10 +15,9 @@ return new class extends Migration
             $table->id();
             $table->integer('number')->unique();
             $table->integer('seats');
-            $table->enum('status', ['free', 'occupied', 'reserved'])->default('free');
+            $table->enum('status', ['available', 'occupied', 'reserved', 'maintenance'])->default('available');
             $table->timestamps();
         });
-
     }
 
     /**

@@ -100,6 +100,212 @@ class DashboardController extends Controller
     }
 
     /**
+     * Waiter Dashboard with REAL data from database
+     */
+    public function waiter()
+    {
+        $today = Carbon::today();
+        $now = Carbon::now();
+        
+        // Tables avec statut réel depuis la base de données
+        $tables = Table::orderBy('number')->get()->map(function ($table) use ($now) {
+            $currentOrder = $this->getCurrentTableOrder($table->id);
+            $occupiedSince = null;
+            $reservationTime = null;
+            
+            // Si la table est occupée, calculer depuis quand
+            if ($table->status === 'occupied' && $currentOrder) {
+                $occupiedSince = $currentOrder->created_at->diffForHumans();
+            }
+            
+            // Si la table est réservée, récupérer l'heure de réservation
+            if ($table->status === 'reserved') {
+                $reservation = Reservation::where('table_id', $table->id)
+                    ->where('reservation_time', '>', $now)
+                    ->orderBy('reservation_time')
+                    ->first();
+                if ($reservation) {
+                    $reservationTime = Carbon::parse($reservation->reservation_time)->format('H:i');
+                }
+            }
+            
+            return [
+                'id' => $table->id,
+                'number' => $table->number,
+                'capacity' => $table->seats,
+                'status' => $this->mapTableStatusForWaiter($table->status),
+                'occupied_since' => $occupiedSince,
+                'reservation_time' => $reservationTime,
+            ];
+        });
+        
+        // Commandes actives depuis la base de données
+        $activeOrders = Order::whereIn('status', ['pending', 'preparing', 'served'])
+            ->with(['table', 'orderItems.menuItem'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($order) {
+                $items = $order->orderItems->map(function ($item) {
+                    return $item->quantity . 'x ' . $item->menuItem->name;
+                })->toArray();
+                
+                return [
+                    'id' => $order->id,
+                    'table' => $order->table->number,
+                    'items' => $items,
+                    'time' => $order->created_at->format('H:i'),
+                    'status' => $order->status,
+                    'notes' => $order->notes ?? '',
+                ];
+            });
+        
+        // Réservations à venir depuis la base de données
+        $upcomingReservations = Reservation::where('reservation_time', '>', $now)
+            ->whereDate('reservation_time', $today)
+            ->with('table')
+            ->orderBy('reservation_time')
+            ->get()
+            ->map(function ($reservation) {
+                return [
+                    'client' => $reservation->client_name,
+                    'guests' => $reservation->guests,
+                    'time' => Carbon::parse($reservation->reservation_time)->format('H:i'),
+                    'table' => $reservation->table ? $reservation->table->number : 'À attribuer',
+                ];
+            });
+        
+        return view('dashboard.waiter', compact('tables', 'activeOrders', 'upcomingReservations'));
+    }
+
+    /**
+     * Cook Dashboard with REAL data from database
+     */
+    public function cook()
+    {
+        // Statistiques des commandes depuis la base de données
+        $orderStats = [
+            'pending' => Order::where('status', 'pending')->count(),
+            'preparing' => Order::where('status', 'preparing')->count(),
+            'ready' => Order::where('status', 'ready')->count(),
+        ];
+        
+        // File d'attente des commandes depuis la base de données
+        $ordersQueue = Order::whereIn('status', ['pending', 'preparing'])
+            ->with(['table', 'orderItems.menuItem'])
+            ->orderBy('created_at')
+            ->get()
+            ->map(function ($order) {
+                $items = $order->orderItems->map(function ($item) {
+                    return $item->quantity . 'x ' . $item->menuItem->name;
+                })->toArray();
+                
+                $duration = $order->status === 'pending' ? 'Nouveau' : $order->created_at->diffForHumans();
+                
+                return [
+                    'id' => $order->id,
+                    'table' => $order->table->number,
+                    'items' => $items,
+                    'time' => $order->created_at->format('H:i'),
+                    'status' => $order->status,
+                    'notes' => $order->notes ?? '',
+                    'duration' => $duration,
+                ];
+            });
+        
+        // Commandes prêtes depuis la base de données
+        $readyOrders = Order::where('status', 'ready')
+            ->with(['table', 'orderItems.menuItem'])
+            ->orderBy('updated_at', 'desc')
+            ->get()
+            ->map(function ($order) {
+                $items = $order->orderItems->map(function ($item) {
+                    return $item->quantity . 'x ' . $item->menuItem->name;
+                })->toArray();
+                
+                return [
+                    'id' => $order->id,
+                    'table' => $order->table->number,
+                    'items' => $items,
+                    'ready_since' => $order->updated_at->diffForHumans(),
+                ];
+            });
+        
+        // Alertes de stock (pour l'instant statique, à connecter plus tard à un système de stock)
+        $lowStockItems = [
+            ['name' => 'Vin rouge - Bordeaux', 'current_stock' => 2, 'unit' => 'bouteilles', 'level' => 'critical'],
+            ['name' => 'Champignons frais', 'current_stock' => 300, 'unit' => 'g', 'level' => 'critical'],
+            ['name' => 'Crème fraîche', 'current_stock' => 500, 'unit' => 'ml', 'level' => 'warning'],
+        ];
+        
+        return view('dashboard.cook', compact('orderStats', 'ordersQueue', 'readyOrders', 'lowStockItems'));
+    }
+
+    /**
+     * Client Dashboard
+     */
+    public function client()
+    {
+        $user = Auth::user();
+        
+        // Statistiques du client depuis la base de données
+        $stats = [
+            'upcoming_reservations' => Reservation::where('client_name', $user->name)
+                ->where('reservation_time', '>', Carbon::now())
+                ->count(),
+            'past_visits' => Reservation::where('client_name', $user->name)
+                ->where('reservation_time', '<', Carbon::now())
+                ->count(),
+            'loyalty_points' => 250, // À connecter à un système de fidélité
+        ];
+        
+        // Prochaine réservation depuis la base de données
+        $nextReservation = Reservation::where('client_name', $user->name)
+            ->where('reservation_time', '>', Carbon::now())
+            ->orderBy('reservation_time')
+            ->first();
+            
+        $nextReservationData = null;
+        if ($nextReservation) {
+            $nextReservationData = [
+                'date' => Carbon::parse($nextReservation->reservation_time)->format('d M Y'),
+                'time' => Carbon::parse($nextReservation->reservation_time)->format('H:i'),
+                'guests' => $nextReservation->guests,
+                'notes' => $nextReservation->notes ?? 'Aucune note spéciale'
+            ];
+        }
+        
+        // Menu dynamique depuis la base de données
+        $entrees = Menu::where('category', 'entrée')->where('is_available', true)->get();
+        $plats = Menu::where('category', 'plat')->where('is_available', true)->get();
+        $desserts = Menu::where('category', 'dessert')->where('is_available', true)->get();
+        $boissons = Menu::where('category', 'boisson')->where('is_available', true)->get();
+        
+        $menuPreview = [
+            'entrees' => $entrees,
+            'plats' => $plats,
+            'desserts' => $desserts,
+            'boissons' => $boissons
+        ];
+        
+        return view('dashboard.client', compact('stats', 'nextReservationData', 'menuPreview'));
+    }
+
+    /**
+     * Map table status for waiter interface
+     */
+    private function mapTableStatusForWaiter($status)
+    {
+        return match($status) {
+            'free' => 'available',
+            'occupied' => 'occupied',
+            'reserved' => 'reserved',
+            default => 'available'
+        };
+    }
+
+    // ... (toutes les autres méthodes privées restent identiques)
+    
+    /**
      * Get clients count for today
      */
     private function getClientsToday($today)
@@ -253,7 +459,7 @@ class DashboardController extends Controller
             'bottom-20 left-10',
             'bottom-20 left-40',
             'bottom-20 right-40',
-            'bottom-20 right-10',
+            'bottom-20 right-11',
         ];
         
         return $positions[$index] ?? 'top-10 left-10';
@@ -268,108 +474,5 @@ class DashboardController extends Controller
             ->whereIn('status', ['pending', 'preparing', 'served'])
             ->with('orderItems.menuItem')
             ->first();
-    }
-
-    /**
-     * Waiter Dashboard
-     */
-    public function waiter()
-    {
-        // Mock data for tables
-        $tables = [
-            ['id' => 1, 'number' => 1, 'capacity' => 4, 'status' => 'available'],
-            ['id' => 2, 'number' => 2, 'capacity' => 2, 'status' => 'occupied', 'occupied_since' => '45 min'],
-            ['id' => 3, 'number' => 3, 'capacity' => 6, 'status' => 'occupied', 'occupied_since' => '15 min'],
-            ['id' => 4, 'number' => 4, 'capacity' => 4, 'status' => 'reserved', 'reservation_time' => '13:30'],
-            ['id' => 5, 'number' => 5, 'capacity' => 2, 'status' => 'available'],
-            ['id' => 6, 'number' => 6, 'capacity' => 4, 'status' => 'occupied', 'occupied_since' => '30 min'],
-            ['id' => 7, 'number' => 7, 'capacity' => 2, 'status' => 'available'],
-            ['id' => 8, 'number' => 8, 'capacity' => 8, 'status' => 'reserved', 'reservation_time' => '20:00'],
-        ];
-        
-        $activeOrders = [
-            ['id' => 1245, 'table' => 2, 'items' => ['2x Salade César', '1x Lasagnes', '1x Tiramisu'], 'time' => '12:15', 'status' => 'preparing', 'notes' => 'Sans oignons pour les salades'],
-            ['id' => 1246, 'table' => 3, 'items' => ['4x Steak frites', '2x Soupe à l\'oignon'], 'time' => '12:30', 'status' => 'preparing', 'notes' => '2 steaks bien cuits, 2 à point'],
-            ['id' => 1247, 'table' => 6, 'items' => ['2x Burger maison', '2x Frites', '2x Coca-Cola'], 'time' => '12:45', 'status' => 'served'],
-        ];
-        
-        $upcomingReservations = [
-            ['client' => 'Martin Dubois', 'guests' => 4, 'time' => '13:30', 'table' => 4],
-            ['client' => 'Famille Petit', 'guests' => 8, 'time' => '20:00', 'table' => 8],
-            ['client' => 'Julie Blanc', 'guests' => 2, 'time' => '20:30', 'table' => 'À attribuer'],
-        ];
-        
-        return view('dashboard.waiter', compact('tables', 'activeOrders', 'upcomingReservations'));
-    }
-
-    /**
-     * Cook Dashboard
-     */
-    public function cook()
-    {
-        $orderStats = [
-            'pending' => 4,
-            'preparing' => 2,
-            'ready' => 3,
-        ];
-        
-        $ordersQueue = [
-            ['id' => 1245, 'table' => 2, 'items' => ['2x Salade César', '1x Lasagnes', '1x Tiramisu'], 'time' => '12:15', 'status' => 'preparing', 'notes' => 'Sans oignons pour les salades', 'duration' => '20 min'],
-            ['id' => 1246, 'table' => 3, 'items' => ['4x Steak frites', '2x Soupe à l\'oignon'], 'time' => '12:30', 'status' => 'preparing', 'notes' => '2 steaks bien cuits, 2 à point', 'duration' => '5 min'],
-            ['id' => 1247, 'table' => 5, 'items' => ['1x Risotto aux champignons', '1x Poulet rôti'], 'time' => '12:40', 'status' => 'pending', 'notes' => '', 'duration' => 'Nouveau'],
-            ['id' => 1248, 'table' => 7, 'items' => ['2x Salade niçoise', '2x Crème brûlée'], 'time' => '12:42', 'status' => 'pending', 'notes' => '', 'duration' => 'Nouveau'],
-        ];
-        
-        $readyOrders = [
-            ['id' => 1242, 'table' => 1, 'items' => ['2x Quiche Lorraine', '2x Salade verte'], 'ready_since' => '5 min'],
-            ['id' => 1243, 'table' => 4, 'items' => ['1x Bœuf bourguignon', '1x Tarte aux pommes'], 'ready_since' => '3 min'],
-            ['id' => 1244, 'table' => 8, 'items' => ['3x Magret de canard', '3x Mousse au chocolat'], 'ready_since' => '1 min'],
-        ];
-        
-        $lowStockItems = [
-            ['name' => 'Vin rouge - Bordeaux', 'current_stock' => 2, 'unit' => 'bouteilles', 'level' => 'critical'],
-            ['name' => 'Champignons frais', 'current_stock' => 300, 'unit' => 'g', 'level' => 'critical'],
-            ['name' => 'Crème fraîche', 'current_stock' => 500, 'unit' => 'ml', 'level' => 'warning'],
-        ];
-        
-        return view('dashboard.cook', compact('orderStats', 'ordersQueue', 'readyOrders', 'lowStockItems'));
-    }
-
-    /**
-     * Client Dashboard
-     */
-    public function client()
-    {
-        $user = Auth::user();
-        
-        // Statistiques du client (à dynamiser plus tard)
-        $stats = [
-            'upcoming_reservations' => 1,
-            'past_visits' => 8,
-            'loyalty_points' => 250,
-        ];
-        
-        // Prochaine réservation (à dynamiser plus tard)
-        $nextReservation = [
-            'date' => '15 juin 2024',
-            'time' => '20:00',
-            'guests' => 2,
-            'notes' => 'Table près de la fenêtre demandée'
-        ];
-        
-        // Menu dynamique depuis la base de données
-        $entrees = Menu::where('type', 'entrée')->get();
-        $plats = Menu::where('type', 'plat')->get();
-        $desserts = Menu::where('type', 'dessert')->get();
-        $boissons = Menu::where('type', 'boisson')->get();
-        
-        $menuPreview = [
-            'entrees' => $entrees,
-            'plats' => $plats,
-            'desserts' => $desserts,
-            'boissons' => $boissons
-        ];
-        
-        return view('dashboard.client', compact('stats', 'nextReservation', 'menuPreview'));
     }
 }

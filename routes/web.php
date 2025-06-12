@@ -126,6 +126,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('role:waiter')->prefix('waiter')->name('waiter.')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'waiter'])->name('dashboard');
     });
+    // Routes pour les commandes
+    Route::prefix('orders')->name('orders.')->group(function () {
+        Route::get('/', [OrderController::class, 'index'])->name('index');
+        Route::post('/', [OrderController::class, 'store'])->name('store');
+        Route::get('/{order}', [OrderController::class, 'show'])->name('show');
+        Route::patch('/{order}/status', [OrderController::class, 'updateStatus'])->name('updateStatus');
+        Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+        Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
+    });
     
     // Cook Routes
     Route::middleware('role:cook')->prefix('cook')->name('cook.')->group(function () {
